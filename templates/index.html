@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INGRES AI Assistant</title>
+    <!-- Import Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* A more polished, modern design */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .api-key-area {
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 10px;
+        }
+        #apiKeyInput {
+            flex-grow: 1;
+            border: 1px solid #dde2e7;
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+        #saveKeyBtn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .chat-container {
+            flex-grow: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .chat-box {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+        }
+        #userInput {
+            flex-grow: 1;
+            border: 1px solid #dde2e7;
+            border-radius: 20px;
+            padding: 10px 18px;
+            font-size: 16px;
+            outline: none;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message {
+            background-color: #e9ecef;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .loading-message {
+            background-color: #e9ecef;
+            color: #888;
+            font-style: italic;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .chart-wrapper {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="api-key-area">
+        <input type="password" id="apiKeyInput" placeholder="Enter your Gemini API Key here...">
+        <button id="saveKeyBtn">Save Key</button>
+    </div>
+    <div class="chat-container">
+        <div class="chat-header">INGRES AI Assistant</div>
+        <div class="chat-box" id="chatBox">
+            <div class="message bot-message">Hello! Please enter your Gemini API Key above and click 'Save Key' to begin.</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="userInput" placeholder="Ask a question..." disabled>
+        </div>
+    </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById('chatBox');
+    const userInput = document.getElementById('userInput');
+    const saveKeyBtn = document.getElementById('saveKeyBtn');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    let geminiApiKey = '';
+
+    window.onload = () => {
+        const savedKey = localStorage.getItem('geminiApiKey');
+        if (savedKey) {
+            geminiApiKey = savedKey;
+            apiKeyInput.value = savedKey;
+            userInput.disabled = false;
+            addMessage("API Key loaded from memory. You can start chatting.", "bot-message");
+        }
+    };
+
+    saveKeyBtn.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (key) {
+            geminiApiKey = key;
+            localStorage.setItem('geminiApiKey', key);
+            userInput.disabled = false;
+            addMessage("API Key saved. You can now ask a question.", "bot-message");
+        }
+    });
+
+    const addMessage = (text, className) => {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', className);
+        messageElement.textContent = text;
+        chatBox.appendChild(messageElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return messageElement;
+    };
+
+    const renderChart = async (state) => {
+        try {
+            const response = await fetch('/api/chart-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ state: state })
+            });
+            const chartData = await response.json();
+
+            if (chartData.error) {
+                addMessage(chartData.error, 'bot-message');
+                return;
+            }
+
+            const chartWrapper = document.createElement('div');
+            chartWrapper.className = 'chart-wrapper';
+            const canvas = document.createElement('canvas');
+            chartWrapper.appendChild(canvas);
+            chatBox.appendChild(chartWrapper);
+
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: `Groundwater Extraction % for ${state}`,
+                        data: chartData.data,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Historical Trend for ${state}`
+                        }
+                    }
+                }
+            });
+             chatBox.scrollTop = chatBox.scrollHeight;
+        } catch (error) {
+            addMessage(`Error fetching chart data for ${state}.`, 'bot-message');
+        }
+    }
+
+    const sendMessage = async () => {
+        const query = userInput.value.trim();
+        if (query === '' || !geminiApiKey) return;
+
+        addMessage(query, 'user-message');
+        userInput.value = '';
+        userInput.disabled = true;
+
+        const loadingMessage = addMessage("Thinking...", 'loading-message');
+        let loadingMessageExists = true;
+
+        try {
+            const response = await fetch('/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query, api_key: geminiApiKey })
+            });
+            
+            if (loadingMessageExists) {
+                chatBox.removeChild(loadingMessage);
+                loadingMessageExists = false;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.response || `Server returned status ${response.status}`);
+            }
+            
+            const data = await response.json();
+
+            if (data.type === 'chart') {
+                addMessage(data.response, 'bot-message');
+                await renderChart(data.state);
+            } else {
+                 addMessage(data.response, 'bot-message');
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            if(loadingMessageExists) {
+                chatBox.removeChild(loadingMessage);
+            }
+            addMessage(`Sorry, there was an error: ${error.message}`, 'bot-message');
+        } finally {
+            userInput.disabled = false;
+            userInput.focus();
+        }
+    };
+
+    userInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+</script>
+</body>
+</html>
+
