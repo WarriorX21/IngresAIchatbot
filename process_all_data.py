@@ -89,7 +89,7 @@ def process_state_level_files():
     master_df = pd.concat(all_dataframes, ignore_index=True).dropna(subset=['State'])
     master_df.to_csv(OUTPUT_FILE, index=False)
     
-    print("\nSuccess! ✨")
+    print("\nSuccess!")
     print(f"All files have been combined and correctly processed into '{OUTPUT_FILE}'.")
     print(f"Total rows in master file: {len(master_df)}")
 
